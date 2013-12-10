@@ -1,4 +1,7 @@
 from threading import RLock as Lock
+rom execution import PluginSet
+from os import listdir, environ
+from os.path import isdir
 
 def find_ranges(l):
 	i,start,recent,started=1,l[0],l[0],True
@@ -53,20 +56,6 @@ class Build:
 		with self.blob_lock:
 			self.blobs[pkg]=blob
 
-class PackageManager:
-	def __init__(self,project_name):
-		self.project_name = project_name
-	def load_package(self,pkg_name):
-		return self.determine_pkg_type(pkg_name).load(open(pkg_name))
-	def freespace(self):
-		return []
-	@property
-	def packages(self):
-		return []
-	def get_build_number(self):return 0
-	def make_build(self):
-		return Build(self)
-
 class Package:
 	def __init__(self,data,references):
 		self.data=data
@@ -87,3 +76,25 @@ class PatchBuilder:
 		pass
 	def build(self,active_build):
 		return b'LOLIMADEAPATCH???'
+
+class PackageManager:
+	ExtendedTypes = PluginSet(Package)
+	PROJECT_LIST_DIRECTORY = environ.get("HackingProjects","./projects")
+	def __init__(self,project_name):
+		self.project_name = project_name
+		self.base_directory = self.PROJECT_LIST_DIRECTORY + "/" + project_name
+	def load_package(self,pkg_name):
+		return self.determine_pkg_type(pkg_name).load(open(pkg_name))
+	def freespace(self):
+		return []
+	@property
+	def packages(self):
+		r=[]
+		for pkg_type in listdir(self.base_directory):
+			if not isdir(self.base_directory+"/"+pkg_type):continue
+			for pkg_name in listdir(self.base_directory+"/"+pkg_type):
+				r.append(pkg_type+"/"+pkg_name)
+		return r
+	def get_build_number(self):return 0
+	def make_build(self):
+		return Build(self)

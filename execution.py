@@ -1,9 +1,13 @@
-from threading import Thread, RLock, Condition
+from threading import Thread, RLock, Condition, Event
+from os import listdir, stat as fstat
+from os.path import join as joinpath, basename, splitext
+from imp import load_source
+import inspect
 
 def string_list(s):return s.split() if isinstance(s,str) else s
 
 class Event:
-	def __init__(self):self.handlers=[]
+	def __init__(self,handlers=[]):self.handlers=handlers
 	def trigger(self,*a,**kw):
 		for h in self.handlers:
 			h(*a,**kw)
@@ -88,7 +92,68 @@ class ProcessTask(Task):
 		self.process=process
 	def run_process(self):
 		self.process.launch(True)
-		
+
+class DirectoryWatch(Thread):
+	MINIMUM_FREQUENCY = 60
+	def __init__(self,directory,frequency,ready_fun=None):
+		self.frequency,self.frequency_lock=frequency,RLock()
+		self.target_directory = directory
+		self.modified_times_lock,self.modified_times = RLock(),{}#filename:modified_time
+		# notice that the modified_time is arbitrary and that I really don't need
+		# to know anything about it, except to compare it.
+		self.on_update = Event()
+		Thread.__init__(self)
+		self.daemon=True
+		if ready_fun:
+			on_update.handlers.append(ready_fun)
+		self.scan_files()
+		if ready_ufn:
+			on_update.handlers.remove(ready_fun)
+	def scan_files():
+		frequency_adjustment=1.0
+		with self.modified_times_lock:
+			for fn in listdir(self.target_directory):
+				t=fstat(joinpath(self.target_directory,fn)).st_mtime
+				if self.modified_times.get(fn,-1)<t:
+					self.modified_times[fn]=t
+					self.on_update.trigger(joinpath(self.directory,fn),t)
+					frequency_adjustment += 1.0
+				else: self.frequency_adjustment -= 1.0
+			frequency_adjustment /= len(self.modified_times)
+		with self.frequency_lock:
+			freq = self.frequency - (self.frequency*frequency_adjustment)
+			self.frequency = max(self.MINIMUM_FREQUENCY,freq)
+	def run(self):
+		wait = Event()
+		while True:
+			self.scan_files()
+			wait.wait(self.frequency)
+
+class PluginSet:
+	def __init__(self,t,path,frequency=20):
+		self.target_directory = path or joinpath(".","plugins")
+		self.extended_type=t
+		#module_filename:(module,[plugins])
+		self.module_lock,self.modules=RLock(),{}
+		self.watcher = DirectoryWatch(self.target_directory,frequency,self.load_module)
+	def load_module(self,filename,timestamp):
+		with self.module_lock:
+			name, ext = splitext(basename(filename))
+			module,plugins=load_source(name,self.target_directory),[]
+			for name,object in inspect.getmembers(module):
+				print("Checking",name)
+				if inspect.isclass(object):
+					if issubclass(object,self.extended_type):
+						if not object is self.extended_type:
+							plugins.append(object)
+							print("Found one!")
+			self.modules[filename]=(module,plugins)
+	@property
+	def plugins(self):
+		with self.module_lock:
+			for (module,plugin_list) in self.modules.values():
+				for plugin in plugin_list:
+					yield plugin
 
 if __name__=="__main__":
 	from time import sleep
