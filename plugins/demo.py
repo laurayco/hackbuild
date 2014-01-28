@@ -1,6 +1,5 @@
-import execution
 
-class SimplePlugin(execution.DemoPlugin):
+class SimplePlugin(DemoPlugin):
 	@property
 	def overriden(self):
 		return "SIMPLY."

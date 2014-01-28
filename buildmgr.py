@@ -1,5 +1,5 @@
 from threading import RLock as Lock
-rom execution import PluginSet
+from execution import PluginMount
 from os import listdir, environ
 from os.path import isdir
 
@@ -56,7 +56,7 @@ class Build:
 		with self.blob_lock:
 			self.blobs[pkg]=blob
 
-class Package:
+class Package(metaclass=PluginMount):
 	def __init__(self,data,references):
 		self.data=data
 		self.references=references

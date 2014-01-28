@@ -129,77 +129,19 @@ class DirectoryWatch(Thread):
 			self.scan_files()
 			wait.wait(self.frequency)
 
-class PluginSet:
-	def __init__(self,t,path=None,frequency=20):
-		self.target_directory = path or joinpath(dirname(realpath(__file__)),"plugins")
-		self.extended_type=t
-		#module_filename:(module,[plugins])
-		self.module_lock,self.modules=RLock(),{}
-		self.watcher = DirectoryWatch(self.target_directory,frequency,self.load_module)
-		self.on_plugin_loaded = Event()
-	def load_module(self,filename,timestamp):
-		with self.module_lock:
-			name, ext = splitext(basename(filename))
-			if len(ext)<1:
-				return
-			#name = "{}.{}".format("plugins",name)#replace string literal with directory name.
-			#module,plugins=__import__("plugins."+name,fromlist=[name]),[]
-			load_source(name,filename)
-			module,plugins=__import__(name),[]
-			for name,object in inspect.getmembers(module):
-				if inspect.isclass(object):
-					print("Checking class",name)
-					if issubclass(object,self.extended_type):
-						print("It matches...")
-						if not object is self.extended_type:
-							plugins.append(object)
-							self.on_plugin_loaded.trigger(object)
-							print("Found one!")
-			self.modules[filename]=(module,plugins)
-	@property
-	def plugins(self):
-		with self.module_lock:
-			for (module,plugin_list) in self.modules.values():
-				for plugin in plugin_list:
-					yield plugin
-
-class DemoPlugin:
-	@property
-	def overriden(self):
-		return "Original!?"
-	def do_thing(self):print(self.overriden)
-
-if __name__=="__main__":
-	from time import sleep
-	def name_and_delay(n,delay):
-		def f():
-			print("Function {} takes {} seconds.".format(n,delay))
-			sleep(delay)
-			print("Exiting function {}".format(n))
-		return f
-
-	m,async,wait = [
-		('a',name_and_delay("a",.100),""),
-		('b',name_and_delay("b",2.000),""),
-		('c',name_and_delay("c",1.400),'a b'),
-		('d',name_and_delay("d",.700),'b'),
-		('e',name_and_delay("e",.830),'a'),
-		('f',name_and_delay("f",.450),'c'),
-		('g',name_and_delay("g",3.000),"")
-	],True,False
-	
-	print("Starting ordered process...")
-	#OrderedProcess(m,async).launch(wait)
-	print("Ordered process finished","launching." if not wait else "running.")
-
-	print("Testing plugins...")
-	print("PLEASE NOTE: This only works if there are modules available in ./plugins")
-	pluginset = PluginSet(DemoPlugin,frequency=.5)
-	def on_plugin_loaded(plugin):
-		print("Loaded plugin:",plugin.__name__)
-		print("Testing instance:")
-		inst = plugin()
-		print(inst.do_thing())
-		print("Finished testing instance.")
-	pluginset.on_plugin_loaded = on_plugin_loaded
-	print("Plugins tested.")
+# taken from: https://djangosnippets.org/snippets/542/
+class PluginMount(type):
+    def __init__(cls, name, bases, attrs):
+        if not hasattr(cls, 'plugins'):
+            print("Initializing plugin mount:",cls.__name__)
+            # This branch only executes when processing the mount point itself.
+            # So, since this is a new plugin type, not an implementation, this
+            # class shouldn't be registered as a plugin. Instead, it sets up a
+            # list where plugins can be registered later.
+            cls.plugins = []
+        else:
+            print("Adding plugin",cls.__name__)
+            # This must be a plugin implementation, which should be registered.
+            # Simply appending it to the list is all that's needed to keep
+            # track of it later.
+            cls.plugins.append(cls)
