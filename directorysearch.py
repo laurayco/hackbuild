@@ -15,13 +15,17 @@ class FileSearch:
 		] + os.path.expandvars(self.environment_name).split(self.environment_splitter)
 	def files(self):
 		for directory in self.directories:
-			for filename in os.listdir(directory):
-				if self.accept(filename):
-					yield os.path.join(directory,filename)
+			if not os.path.exists(directory):
+				os.makedirs(directory)
+			if os.path.isdir(directory):
+				for filename in os.listdir(directory):
+					if self.accept(filename):
+						yield os.path.join(directory,filename)
 	def accept(self,filename):return True
 
 class ExtensionSearch(FileSearch):
 	def __init__(self,extension,search_name=None):
 		FileSearch.__init__(self,search_name)
 		self.extension = extension.lower()
+		print(self.extension)
 	def accept(self,filename): return filename.lower().endswith(self.extension)

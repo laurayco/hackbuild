@@ -1,0 +1,9 @@
+{
+	"fields":{
+		"connection_type":(0,"I",None),
+		"connection_offset":(1,"I",None),
+		"map_bank":(2,"B",None),
+		"map_number":(3,"B",None),
+		"filler":(4,"H",None)
+	}
+}

@@ -1,4 +1,4 @@
-import json, struct
+import json, struct, os
 import directorysearch
 
 class StructureReference:
@@ -16,31 +16,28 @@ class StructureTableReference(StructureReference):
 		for i in range(self.size):
 			yield self.target.from_bytes(rom,self.reference + (4*i))
 
-class RomStructure:
-	#name:(order,struct-code,None-or-referencing class)
-	#  notice: prefix a field-name with "@" to indicate a pointer.
-	#          prefix with "@other-field-name@" to indicate an array pointer
-	#          with a length defined in other-field-name.
-	fields = {}
-	def __init__(self,data,location='?'):
-		missing_keys = [ k for k in self.fields.keys() if k not in data]
-		assert len(missing_keys)<1
+class RomEntity:
+	def __init__(self,structure,data):
+		self.structure = structure
 		self.data = data
-		self.location=location
-	@classmethod
-	def format_string(cls): return "<"+"".join([a[1] for a in sorted(cls.fields.values())])
-	@classmethod
-	def from_bytes(cls,data,offset=0):
-		frmt,offset = cls.format_string(),cls.actual_pointer(offset)
-		raw_data = struct.unpack(frmt,data[offset:offset+struct.calcsize(frmt)])
-		data = dict((key,raw_data[info[0]]) for key,info in cls.fields.items())
-		return cls(data)
-	@classmethod
-	def to_bytes(cls,data):
-		frmt = cls.format_string()
-		field_list = [field[1] for field in sorted([(val[0],key) for key,value in cls.fields.items()])]
+	def compile(self):
+		return self.structure.to_bytes(self.data)
+
+class RomStructure:
+	def __init__(self,fields,constants):
+		self.fields, self.constants = fields, constants
+	def format_string(self): return "<"+"".join([a[1] for a in sorted(self.fields.values())])
+	def to_bytes(self,data):
+		frmt = self.format_string()
+		field_list = [field[1] for field in sorted([(val[0],key) for key,value in self.fields.items()])]
 		return struct.pack(frmt,[data[field] for field in field_list])
-	def compile(self): return self.to_bytes(self.data)
+	def from_bytes(self,data,offset=0):
+		frmt,offset = self.format_string(),self.actual_pointer(offset)
+		raw_data = struct.unpack(frmt,data[offset:offset+struct.calcsize(frmt)])
+		data = dict((key,raw_data[info[0]]) for key,info in self.fields.items())
+		return self.make_entity(data)
+	def make_entity(self,data):
+		return RomEntity(self,data)
 	@classmethod
 	def actual_pointer(cls,rom_pointer):return rom_pointer&0x01FFFFFF
 	def get_field(self,key,rom=None):
@@ -51,7 +48,7 @@ class RomStructure:
 			raise e
 		else:
 			if key[0]=='@':
-				target_datatype = self.fields[key][2]
+				target_datatype = self.structure.fields[key]['referencing']
 				if target_datatype:
 					if key[1:].find('@')>=0:
 						length_field = key[1:][:key[1:].find("@")]
@@ -65,9 +62,20 @@ class RomStructure:
 class StructureLoader(directorysearch.ExtensionSearch):
 	def __init__(self):
 		directorysearch.ExtensionSearch.__init__(self,".RomStructure.json","RomStructurePath")
-	def load(self,fn):
+	def load(self,name):
+		name += self.extension
+		fn = ""
+		for fn in self.files:
+			if fn.endswith(name):break
 		with open(fn) as f:
-			return RomStructure(json.load(f))
+			data=json.load(f)
+			return RomStructure(data['fields'],data.get('constants',{}))
+	@property
+	def available_structures(self):return map(self.structure_name,self.files())
+	def structure_name(self,fn):
+		print(fn)
+		fn = os.path.basename(fn).lower()
+		return fn[:-len(self.extension)]
 
 # a "proto-type" so I can reference them in the field definitions.
 class MapHeaderStructure(RomStructure):pass
@@ -134,16 +142,6 @@ def display_structure(structure,recurse=True):
 
 
 if __name__=="__main__":
-	rom_fn = input("Rom File Name>")
-	BANK_LIST_OFFSET = 0x3526A8
-	try: rom = open(rom_fn,'rb').read()
-	except:raise
-	else:
-		while True:
-			bank = int(input("Map Bank>"))
-			map = int(input("Map Number>"))
-			map_structure = MapHeaderStructure.load_map(rom,bank,map,BANK_LIST_OFFSET)
-			display_structure(map_structure,False)
-			connection_header_structure = map_structure.get_field('@connections',rom)
-			for map_connection in connection_header_structure.get_field('@num_connections@connections',rom):
-				display_structure(map_connection)
+	structure_loader = StructureLoader()
+	for structure_name in structure_loader.available_structures:
+		print("Found structure type:",structure_name)
