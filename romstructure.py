@@ -1,4 +1,5 @@
 import json, struct
+import directorysearch
 
 class StructureReference:
 	def __init__(self,t,d):
@@ -60,6 +61,13 @@ class RomStructure:
 					if rom:
 						return reference.follow(rom)
 			return reference
+
+class StructureLoader(directorysearch.ExtensionSearch):
+	def __init__(self):
+		directorysearch.ExtensionSearch.__init__(self,".RomStructure.json","RomStructurePath")
+	def load(self,fn):
+		with open(fn) as f:
+			return RomStructure(json.load(f))
 
 # a "proto-type" so I can reference them in the field definitions.
 class MapHeaderStructure(RomStructure):pass
