@@ -8,22 +8,12 @@ class StructureReference:
 		return self.target.from_bytes(rom,self.target.actual_pointer(self.reference))
 
 class StructureTableReference(StructureReference):
-	class StructureIterator(StructureReference):
-		def __init__(self,rom,t,d,n):
-			StructureReference.__init__(self,t,d)
-			self.rom = rom
-			self.size = n
-			self.position = -1
-		def next(self):
-			self.position += 1
-			if self.position >= self.size:
-				raise StopIteration
-			return self.target.from_bytes(self.rom,self.reference + 4 * self.position)
 	def __init__(self,t,d,n):
 		StructureReference.__init__(self,t,d)
 		self.size = n
 	def follow(self,rom):
-		return StructureIterator(self.rom,self.target,self.reference,self.size)
+		for i in range(self.size):
+			yield self.target.from_bytes(rom,self.reference + (4*i))
 
 class RomStructure:
 	#name:(order,struct-code,None-or-referencing class)
@@ -63,11 +53,9 @@ class RomStructure:
 				target_datatype = self.fields[key][2]
 				if target_datatype:
 					if key[1:].find('@')>=0:
-						length_field = key[1:][key[1:]:key.find('@')+1]
-						print("Returning table reference with",length_field,"for",key)
+						length_field = key[1:][:key[1:].find("@")]
 						reference = StructureTableReference(target_datatype,reference,self.data[length_field])
 					else:
-						print("Returning non-table reference for",key)
 						reference = StructureReference(target_datatype,reference)
 					if rom:
 						return reference.follow(rom)
