@@ -1,14 +1,41 @@
 import json, struct
 
+class StructureReference:
+	def __init__(self,t,d):
+		self.reference = d#will be either a string, or an offset.
+		self.target = t#type of RomStructure
+	def follow(self,rom):
+		return self.target.from_bytes(rom,self.target.actual_pointer(self.reference))
+
+class StructureTableReference(StructureReference):
+	class StructureIterator(StructureReference):
+		def __init__(self,rom,t,d,n):
+			StructureReference.__init__(self,t,d)
+			self.rom = rom
+			self.size = n
+			self.position = -1
+		def next(self):
+			self.position += 1
+			if self.position >= self.size:
+				raise StopIteration
+			return self.target.from_bytes(self.rom,self.reference + 4 * self.position)
+	def __init__(self,t,d,n):
+		StructureReference.__init__(self,t,d)
+		self.size = n
+	def follow(self,rom):
+		return StructureIterator(self.rom,self.target,self.reference,self.size)
+
 class RomStructure:
 	#name:(order,struct-code,None-or-referencing class)
 	#  notice: prefix a field-name with "@" to indicate a pointer.
 	#          prefix with "@other-field-name@" to indicate an array pointer
 	#          with a length defined in other-field-name.
 	fields = {}
-	def __init__(self,data):
-		assert all(k in data for k in self.fields.keys())
+	def __init__(self,data,location='?'):
+		missing_keys = [ k for k in self.fields.keys() if k not in data]
+		assert len(missing_keys)<1
 		self.data = data
+		self.location=location
 	@classmethod
 	def format_string(cls): return "<"+"".join([a[1] for a in sorted(cls.fields.values())])
 	@classmethod
@@ -25,10 +52,45 @@ class RomStructure:
 	def compile(self): return self.to_bytes(self.data)
 	@classmethod
 	def actual_pointer(cls,rom_pointer):return rom_pointer&0x01FFFFFF
+	def get_field(self,key,rom=None):
+		try:
+			reference=self.data[key]
+		except KeyError as e:
+			print(list(self.data.keys()))
+			raise e
+		else:
+			if key[0]=='@':
+				target_datatype = self.fields[key][2]
+				if target_datatype:
+					if key[1:].find('@')>=0:
+						length_field = key[1:][key[1:]:key.find('@')+1]
+						print("Returning table reference with",length_field,"for",key)
+						reference = StructureTableReference(target_datatype,reference,self.data[length_field])
+					else:
+						print("Returning non-table reference for",key)
+						reference = StructureReference(target_datatype,reference)
+					if rom:
+						return reference.follow(rom)
+			return reference
 
 # a "proto-type" so I can reference them in the field definitions.
 class MapHeaderStructure(RomStructure):pass
-class ConnectionHeaderStructure(RomStructure):pass
+
+class MapConnectionStructure(RomStructure):
+	fields = {
+		"connection_type":(0,"I",None),
+		"connection_offset":(1,"I",None),
+		"map_bank":(2,"B",None),
+		"map_number":(3,"B",None),
+		"filler":(4,"H",None)
+	}
+
+class ConnectionHeaderStructure(RomStructure):
+	fields = {
+		"num_connections":(0,"I",None),
+		"@num_connections@connections":(1,"I",MapConnectionStructure)
+	}
+
 class MapConnectionStructure(RomStructure):pass
 class MapDataStructure(RomStructure):pass
 class MapScriptStructure(RomStructure):pass
@@ -56,21 +118,6 @@ class MapHeaderStructure(RomStructure):
 		map_pointer = load_pointer(load_pointer(bank_offset + bank * 4) + map * 4)
 		return cls.from_bytes(rom,map_pointer)
 
-class ConnectionHeaderStructure(RomStructure):
-	fields = {
-		"num_connections":(0,"I",None),
-		"@num_connections@connections":(1,"I",MapConnectionStructure)
-	}
-
-class MapConnectionStructure(RomStructure):
-	fields = {
-		"connection_type":(0,"I",None),
-		"connection_offset":(1,"I",None),
-		"map_bank":(2,"B",None),
-		"map_number":(3,"B",None),
-		"filler":(4,"H",None)
-	}
-
 def display_structure(structure,recurse=True):
 	print("{} object:".format(type(structure).__name__))
 	for field, value in structure.data.items():
@@ -91,7 +138,6 @@ def display_structure(structure,recurse=True):
 
 
 if __name__=="__main__":
-	from pprint import pprint
 	rom_fn = input("Rom File Name>")
 	BANK_LIST_OFFSET = 0x3526A8
 	try: rom = open(rom_fn,'rb').read()
@@ -100,4 +146,8 @@ if __name__=="__main__":
 		while True:
 			bank = int(input("Map Bank>"))
 			map = int(input("Map Number>"))
-			display_structure(MapHeaderStructure.load_map(rom,bank,map,BANK_LIST_OFFSET),False)
+			map_structure = MapHeaderStructure.load_map(rom,bank,map,BANK_LIST_OFFSET)
+			display_structure(map_structure,False)
+			connection_header_structure = map_structure.get_field('@connections',rom)
+			for map_connection in connection_header_structure.get_field('@num_connections@connections',rom):
+				display_structure(map_connection)
