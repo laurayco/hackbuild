@@ -9,23 +9,27 @@ class FileSearch:
 	    if self.search_name:return self.search_name
 	    return type(self).__name__
 	@property
-	def directories(self):return [
+	def directories(self):
+		search_dirs = os.path.expandvars(self.environment_name).split(self.environment_splitter)
+		if len(search_dirs)==1 and search_dirs[0]==self.environment_name: search_dirs = []
+		return [
 			os.path.join(os.getcwd(),self.environment_name),
 			os.getcwd(),
-		] + os.path.expandvars(self.environment_name).split(self.environment_splitter)
+		] + search_dirs
 	def files(self):
 		for directory in self.directories:
 			if not os.path.exists(directory):
 				os.makedirs(directory)
 			if os.path.isdir(directory):
 				for filename in os.listdir(directory):
-					if self.accept(filename):
+					if self.accept(os.path.join(directory,filename)):
 						yield os.path.join(directory,filename)
-	def accept(self,filename):return True
+	def accept(self,filename):
+		return True
 
 class ExtensionSearch(FileSearch):
 	def __init__(self,extension,search_name=None):
 		FileSearch.__init__(self,search_name)
 		self.extension = extension.lower()
-		print(self.extension)
-	def accept(self,filename): return filename.lower().endswith(self.extension)
+	def accept(self,filename):
+		return filename.lower().endswith(self.extension)
