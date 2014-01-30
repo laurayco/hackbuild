@@ -1,0 +1,17 @@
+{
+	"fields":{
+                "num_connections":{
+                	"order":0,
+                	"compile":"I",
+                	"reference":null
+                },
+                "@num_connections@connections":{
+                	"order":1,
+                	"compile":"I",
+                	"reference":"pokemonmapconnection"
+                }
+        },
+	"games":[
+		"BPRE"
+	]
+}

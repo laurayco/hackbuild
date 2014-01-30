@@ -1,0 +1,32 @@
+{
+	"fields":{
+		"connection_type":{
+			"order":0,
+			"compile":"I",
+			"reference":null
+		},
+		"connection_offset":{
+			"order":1,
+			"compile":"I",
+			"reference":null
+		},
+		"map_bank":{
+			"order":2,
+			"compile":"B",
+			"reference":null
+		},
+		"map_number":{
+			"order":3,
+			"compile":"B",
+			"reference":null
+		},
+		"filler":{
+			"order":4,
+			"compile":"H",
+			"reference":null
+		}
+	},
+	"games":[
+		"BPRE"
+	]
+}
