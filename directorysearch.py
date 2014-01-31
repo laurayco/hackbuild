@@ -1,9 +1,13 @@
 import os, sys
+from functools import partial
+from os import listdir as ldir
+from os.path import join as path
 
 class FileSearch:
 	environment_splitter = ';'#change to ':' on linux.
 	def __init__(self,search_name=None):
 		self.search_name=search_name
+		self.constraints = []
 	@property
 	def environment_name(self):
 	    if self.search_name:return self.search_name
@@ -13,7 +17,7 @@ class FileSearch:
 		search_dirs = os.path.expandvars(self.environment_name).split(self.environment_splitter)
 		if len(search_dirs)==1 and search_dirs[0]==self.environment_name: search_dirs = []
 		return [
-			os.path.join(os.getcwd(),self.environment_name),
+			path(os.getcwd(),self.environment_name),
 			os.getcwd(),
 		] + search_dirs
 	def files(self):
@@ -21,15 +25,19 @@ class FileSearch:
 			if not os.path.exists(directory):
 				os.makedirs(directory)
 			if os.path.isdir(directory):
-				for filename in os.listdir(directory):
-					if self.accept(os.path.join(directory,filename)):
-						yield os.path.join(directory,filename)
-	def accept(self,filename):
-		return True
+				print("Yielding from directory",directory)
+				yield from filter(self.accept,map(partial(path,directory),ldir(directory)))
+	def accept(self,filename):return all(f(filename) for f in self.constraints)
 
-class ExtensionSearch(FileSearch):
-	def __init__(self,extension,search_name=None):
-		FileSearch.__init__(self,search_name)
-		self.extension = extension.lower()
-	def accept(self,filename):
-		return filename.lower().endswith(self.extension)
+class DirectorySearch(FileSearch):#exclusively searches a single directory.
+	def __init__(self,search_name=None,directory = os.getcwd()):
+		self.directory = directory
+		super().__init__(search_name)
+	@property
+	def directories(self): return [self.directory]
+
+def extension_search(*extensions):
+	def check_ext(ext):
+		ext = ext.lower()
+		return lambda fn:fn.lower().endswith(ext)
+	return list(map(check_ext,extensions))

@@ -1,4 +1,4 @@
-from threading import Thread, RLock, Condition, Event
+from threading import Thread, RLock, Condition, Event as TEvent
 from os import listdir, stat as fstat
 from os.path import join as joinpath, basename, splitext, dirname, realpath
 from imp import load_source
@@ -41,8 +41,8 @@ class Task:
 				self.launch()
 
 class OrderedProcess:
+	# m = [ TaskObject| (name,function,dependancies), <...>]
 	def __init__(self,m,async=False):
-		# m = [ TaskObject| (name,function,dependancies), <...>]
 		self.async = async
 		def make_launcher(args):
 			if isinstance(args,Task):
@@ -59,7 +59,7 @@ class OrderedProcess:
 			assert len(q)==1
 			name_access[name]=q[0]
 			return get_todo(name)
-		for task in to_do:
+		for task in to_do:	
 			task.async = self.async
 			task.on_finish.handlers.append(self.finished)
 			name_access[task.name]=task
@@ -92,56 +92,3 @@ class ProcessTask(Task):
 		self.process=process
 	def run_process(self):
 		self.process.launch(True)
-
-class DirectoryWatch(Thread):
-	MINIMUM_FREQUENCY = 60
-	def __init__(self,directory,frequency,ready_fun=None):
-		self.frequency,self.frequency_lock=frequency,RLock()
-		self.target_directory = directory
-		self.modified_times_lock,self.modified_times = RLock(),{}#filename:modified_time
-		# notice that the modified_time is arbitrary and that I really don't need
-		# to know anything about it, except to compare it.
-		self.on_update = Event()
-		Thread.__init__(self)
-		self.daemon=True
-		if ready_fun:
-			self.on_update.handlers.append(ready_fun)
-		self.scan_files()
-		if ready_fun:
-			self.on_update.handlers.remove(ready_fun)
-	def scan_files(self):
-		frequency_adjustment=1.0
-		with self.modified_times_lock:
-			for fn in listdir(self.target_directory):
-				t=fstat(joinpath(self.target_directory,fn)).st_mtime
-				if self.modified_times.get(fn,-1)<t:
-					self.modified_times[fn]=t
-					self.on_update.trigger(joinpath(self.target_directory,fn),t)
-					frequency_adjustment += 1.0
-				else: self.frequency_adjustment -= 1.0
-			frequency_adjustment /= max(len(self.modified_times),1)
-		with self.frequency_lock:
-			freq = self.frequency - (self.frequency*frequency_adjustment)
-			self.frequency = max(self.MINIMUM_FREQUENCY,freq)
-	def run(self):
-		wait = Event()
-		while True:
-			self.scan_files()
-			wait.wait(self.frequency)
-
-# taken from: https://djangosnippets.org/snippets/542/
-class PluginMount(type):
-    def __init__(cls, name, bases, attrs):
-        if not hasattr(cls, 'plugins'):
-            print("Initializing plugin mount:",cls.__name__)
-            # This branch only executes when processing the mount point itself.
-            # So, since this is a new plugin type, not an implementation, this
-            # class shouldn't be registered as a plugin. Instead, it sets up a
-            # list where plugins can be registered later.
-            cls.plugins = []
-        else:
-            print("Adding plugin",cls.__name__)
-            # This must be a plugin implementation, which should be registered.
-            # Simply appending it to the list is all that's needed to keep
-            # track of it later.
-            cls.plugins.append(cls)

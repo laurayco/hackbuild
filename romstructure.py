@@ -95,9 +95,10 @@ class RomStructure:
 						return reference.follow(rom)
 			return reference
 
-class StructureLoader(directorysearch.ExtensionSearch):
+class StructureLoader(directorysearch.FileSearch):
 	def __init__(self,game_code):
-		directorysearch.ExtensionSearch.__init__(self,".RomStructure.json","RomStructurePath")
+		directorysearch.FileSearch.__init__(self,"RomStructurePath")
+		self.constraints.extend(directorysearch.extension_search(".RomStructure.json"))
 		self.game_code = game_code
 	@classmethod
 	@cache_calculations
@@ -120,13 +121,13 @@ class StructureLoader(directorysearch.ExtensionSearch):
 		if super().accept(fn):
 			return self.game_code in self.create_structure(fn).games
 
-class ProjectManager:
+class RomManager:
 	def __init__(self, rom_data, game_code_assertion=None):
 		self.rom = rom_data
 		self.rom_info = RomInfo.parseBuffer(self.rom)
-		self.game_code = self.rom_info["code"]
+		self.game_code = self.rom_info["code"].lower()
 		if game_code_assertion:
-			assert self.game_code == game_code_assertion
+			assert self.game_code in game_code_assertion.lower()
 		self.structure_loader = StructureLoader(self.game_code)
 	def decompile(self,t,location):
 		return self.structure_loader.load(t).from_bytes(self.rom,location)
@@ -144,9 +145,16 @@ class ProjectManager:
 			else:print(field,data_str)
 		print("="*80)
 
+
+class ProjectManager(directorysearch.DirectorySearch):
+	def __init__(self,direct):
+		super().__init__(directory=direct)
+	@property
+	def project_name(self):return self.directory.split(os.path.sep)[-1]
+
 if __name__=="__main__":
 	with open(input("ROM:> "),'rb') as f:
-		project_instance = ProjectManager(f.read(),"BPRE")
+		project_instance = RomManager(f.read(),"BPRE")
 		while True:
 			location = int(input("Map Header Location(hex):> "),16)
 			map_entity = project_instance.decompile('pokemonmap',location)
