@@ -49,8 +49,8 @@ class RomEntity:
 	def compile(self):
 		return self.structure.to_bytes(self.data)
 	def dependancies(self):
-		for referring_field in self.structure.reference_fields:
-			if ReferenceField(self.data[referring_field],self.structure.get_structure(referring_field)).is_dynamic:
+		for referring_field in self.structure.reference_fields():
+			if Reference(self.data[referring_field],self.structure.get_structure(referring_field)).is_dynamic:
 				yield referring_field
 
 class RomStructure:
@@ -94,6 +94,34 @@ class RomStructure:
 					if rom:
 						return reference.follow(rom)
 			return reference
+	@staticmethod
+	def compress(data):#data is a bytestring
+
+	@staticmethod
+	def decompress(data):#data is a bytestring
+		if data[0]!=b"\x10"[0]: return None
+		deflate_length,data = int(binascii.hexlify(data[1:4:-1]),16),data[4:]
+		#I initialized it to 0 so that less time is spent allocating memory.
+		deflated,position = bytearray(b"\x00"*deflate_length),0
+		while position<deflate_length:
+			bit_field, position = data[position],position+1
+			for bit in map({"1":True,"0":False}.get,(bin(bit_field))):
+				if bit:#this much is compressed.
+					chunk_size = (data[0]>>4) + 3
+					chunk_location = ( data[1] | ((data[0]&0xF) << 8)) + 1
+					position_end = position + chunk_size
+					deflated[position:position_end] = deflated[position-chunk_location:position_end-chunk_location]
+				else:#this much is not compressed.
+					deflated[position] = (data[0])
+					position,data=position+1,data[1:]
+		return bytes(deflated)
+
+	@staticmethod
+	def compress(data):
+		compression_length = len(data)
+		compressed = bytearray(b"\x10")
+		index, window_size, lookahead, window = 0, 0xFFF, None, None
+		
 
 class StructureLoader(directorysearch.FileSearch):
 	FILE_EXTENSION = ".RomStructure.json"
@@ -110,7 +138,6 @@ class StructureLoader(directorysearch.FileSearch):
 	def load(self,name):
 		name = (name + self.FILE_EXTENSION).lower()
 		for fn in self.files():
-			print(fn)
 			if fn.lower().endswith(name):
 				return self.create_structure(fn)
 	@property
@@ -154,6 +181,8 @@ class ProjectManager(directorysearch.DirectorySearch):
 		super().__init__(directory=direct)
 	@property
 	def project_name(self):return self.directory.split(os.path.sep)[-1]
+	def entities(self):
+
 
 if __name__=="__main__":
 	with open(input("ROM:> "),'rb') as f:
