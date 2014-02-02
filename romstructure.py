@@ -121,7 +121,9 @@ class RomStructure:
 		compression_length = len(data)
 		compressed = bytearray(b"\x10")
 		index, window_size, lookahead, window = 0, 0xFFF, None, None
-		
+		while True:
+			bits = "00000000"
+
 
 class StructureLoader(directorysearch.FileSearch):
 	FILE_EXTENSION = ".RomStructure.json"
