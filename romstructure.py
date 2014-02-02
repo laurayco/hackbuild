@@ -55,7 +55,7 @@ class RomEntity:
 
 class RomStructure:
 	def __init__(self,fields,constants,games):
-		self.fields, self.constants, self.games = fields, constants, games
+		self.fields, self.constants, self.games = fields, constants, list(map(str.lower,games))
 	def format_string(self):
 		return "<"+"".join([a["compile"] for a in sorted(self.fields.values(),key=lambda x:x['order'])])
 	def to_bytes(self,data):
@@ -96,9 +96,10 @@ class RomStructure:
 			return reference
 
 class StructureLoader(directorysearch.FileSearch):
+	FILE_EXTENSION = ".RomStructure.json"
 	def __init__(self,game_code):
 		directorysearch.FileSearch.__init__(self,"RomStructurePath")
-		self.constraints.extend(directorysearch.extension_search(".RomStructure.json"))
+		self.constraints.extend(directorysearch.extension_search(self.FILE_EXTENSION))
 		self.game_code = game_code
 	@classmethod
 	@cache_calculations
@@ -107,8 +108,9 @@ class StructureLoader(directorysearch.FileSearch):
 			data=json.load(f)
 			return RomStructure(data['fields'],data.get('constants',{}),data.get('games',[]))
 	def load(self,name):
-		name += self.extension
+		name = (name + self.FILE_EXTENSION).lower()
 		for fn in self.files():
+			print(fn)
 			if fn.lower().endswith(name):
 				return self.create_structure(fn)
 	@property
@@ -130,7 +132,9 @@ class RomManager:
 			assert self.game_code in game_code_assertion.lower()
 		self.structure_loader = StructureLoader(self.game_code)
 	def decompile(self,t,location):
-		return self.structure_loader.load(t).from_bytes(self.rom,location)
+		structure = self.structure_loader.load(t)
+		if structure:
+			return structure.from_bytes(self.rom,location)
 	def display_entity(self,entity,recurse_level=0):
 		for field,info in entity.structure.fields.items():
 			data_str = hex(entity.data[field]) if isinstance(entity.data[field],int) else entity.data[field]
@@ -154,8 +158,9 @@ class ProjectManager(directorysearch.DirectorySearch):
 
 if __name__=="__main__":
 	with open(input("ROM:> "),'rb') as f:
-		project_instance = RomManager(f.read(),"BPRE")
+		project_instance = RomManager(f.read())
 		while True:
 			location = int(input("Map Header Location(hex):> "),16)
 			map_entity = project_instance.decompile('pokemonmap',location)
-			project_instance.display_entity(map_entity,recurse_level=2)
+			if map_entity:
+				project_instance.display_entity(map_entity,recurse_level=2)

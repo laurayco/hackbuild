@@ -25,7 +25,6 @@ class FileSearch:
 			if not os.path.exists(directory):
 				os.makedirs(directory)
 			if os.path.isdir(directory):
-				print("Yielding from directory",directory)
 				yield from filter(self.accept,map(partial(path,directory),ldir(directory)))
 	def accept(self,filename):return all(f(filename) for f in self.constraints)
 
@@ -39,5 +38,7 @@ class DirectorySearch(FileSearch):#exclusively searches a single directory.
 def extension_search(*extensions):
 	def check_ext(ext):
 		ext = ext.lower()
-		return lambda fn:fn.lower().endswith(ext)
+		def func(fn):
+			return fn.lower().endswith(ext)
+		return func#lambda fn:fn.lower().endswith(ext)
 	return list(map(check_ext,extensions))
