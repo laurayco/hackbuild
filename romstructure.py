@@ -149,7 +149,6 @@ class RomManager:
 			else:print(field,data_str)
 		print("="*80)
 
-
 class ProjectManager(directorysearch.DirectorySearch):
 	def __init__(self,direct):
 		super().__init__(directory=direct)
@@ -164,3 +163,5 @@ if __name__=="__main__":
 			map_entity = project_instance.decompile('pokemonmap',location)
 			if map_entity:
 				project_instance.display_entity(map_entity,recurse_level=2)
+				with open(input("Export: >"),'w') as ef:
+					json.dump(map_entity.data,ef)
