@@ -5,8 +5,8 @@ import ips, json, os
 
 class CompileEntityTask(Task):
 	def __init__(self,entity,name,build_manager):
-		self.entity, self.build_manager, self.name = entity, rom_manager, name
-		deps = list(map('allocate-{}'.format,entity.dependancies())) + 'allocate-{}'.format(name)
+		self.entity, self.build_manager, self.name = entity, build_manager, name
+		deps = list(map('allocate-{}'.format,entity.dependancies())) + ['allocate-{}'.format(name)]
 		super().__init__('compile-{}'.format(name),self.compile_entity,deps)
 	def compile_entity(self):
 		# locations are the offsets of other entities.
@@ -50,11 +50,7 @@ class BuildManager(OrderedProcess):
 		self.locations, self.data = {},{}
 		#self.verify()
 		self.entities, tasks = [], []
-		for filename in self.project.files():
-			entity_type = filename[filename.find(".")+1:]
-			entity_type = entity_type[:len(entity_type)-len(".json")]
-			entity_name = os.path.splitext(os.path.basename(filename))[0]
-			print("Loading a",entity_type,"from",entity_name)
+		for entity_type, entity_name, filename in self.project.entities():
 			structure = self.rom_mgr.structure_loader.load(entity_type)
 			entity = structure.make_entity(json.load(open(filename)))
 			self.entities.append((entity_name,entity))

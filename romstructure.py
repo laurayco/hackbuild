@@ -82,7 +82,7 @@ class RomStructure:
 			return reference
 	@staticmethod
 	def compress(data):#data is a bytestring
-
+		return data
 	@staticmethod
 	def decompress(data):#data is a bytestring
 		if data[0]!=b"\x10"[0]: return None
@@ -171,7 +171,11 @@ class ProjectManager(directorysearch.DirectorySearch):
 	@property
 	def project_name(self):return self.directory.split(os.path.sep)[-1]
 	def entities(self):
-
+		for filename in self.files():
+			entity_type = filename[filename.find(".")+1:]
+			entity_type = entity_type[:len(entity_type)-len(".json")]
+			entity_name = os.path.splitext(os.path.basename(filename))[0]
+			yield entity_type, entity_name, filename
 
 if __name__=="__main__":
 	with open(input("ROM:> "),'rb') as f:
