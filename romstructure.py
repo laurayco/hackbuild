@@ -11,21 +11,6 @@ def cache_calculations(f):
   w.cache={}
   return w
 
-class StructureReference:
-	def __init__(self,t,d):
-		self.reference = d#will be either a string, or an offset.
-		self.target = t#type of RomStructure
-	def follow(self,rom):
-		return self.target.from_bytes(rom,self.target.actual_pointer(self.reference))
-
-class StructureTableReference(StructureReference):
-	def __init__(self,t,d,n):
-		StructureReference.__init__(self,t,d)
-		self.size = n
-	def follow(self,rom):
-		for i in range(self.size):
-			yield self.target.from_bytes(rom,self.reference + (4*i))
-
 class Reference:
 	def __init__(self,location,structure):
 		self.location = location
@@ -54,6 +39,7 @@ class RomEntity:
 				yield referring_field
 
 class RomStructure:
+	is_compressed = False
 	def __init__(self,fields,constants,games):
 		self.fields, self.constants, self.games = fields, constants, list(map(str.lower,games))
 	def format_string(self):
@@ -124,7 +110,6 @@ class RomStructure:
 		while True:
 			bits = "00000000"
 
-
 class StructureLoader(directorysearch.FileSearch):
 	FILE_EXTENSION = ".RomStructure.json"
 	def __init__(self,game_code):
@@ -177,6 +162,8 @@ class RomManager:
 					print("Pointer to a",info['reference'],"at",data_str)
 			else:print(field,data_str)
 		print("="*80)
+	def find_space(self,size,occupied_slots):
+		return 0x800000
 
 class ProjectManager(directorysearch.DirectorySearch):
 	def __init__(self,direct):
