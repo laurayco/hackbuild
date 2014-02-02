@@ -2,6 +2,8 @@
 ## Eclipse
 #################
 
+SampleProject/
+
 *.pydevproject
 .project
 .metadata
